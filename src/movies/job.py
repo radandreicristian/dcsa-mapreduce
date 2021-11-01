@@ -1,7 +1,7 @@
 import pandas as pd
 from mrjob.job import MRJob
 from mrjob.step import MRStep
-import util.preprocessing as pre
+import utils
 
 
 class TopKeywordsJob(MRJob):
@@ -24,7 +24,7 @@ class TopKeywordsJob(MRJob):
         df = pd.read_csv(input_path)
         for _, data in df.iterrows():
             title = data['title']
-            clean_title = pre.preprocess_text(title)
+            clean_title = utils.preprocess_text(title)
             title_words = clean_title.split()
             genres = data['genres'].split("|")
             for genre in genres:

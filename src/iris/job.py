@@ -4,7 +4,8 @@ import pandas as pd
 from mrjob.job import MRJob
 from mrjob.step import MRStep
 
-from utils import determine_nearest, compute_distances, ListMerger
+from utils import get_most_frequent, merge_k_lists
+from numpy.linalg import norm
 
 
 class IrisClassificationJob(MRJob):
@@ -29,9 +30,9 @@ class IrisClassificationJob(MRJob):
         the train samples.
         :param input_path: The path to the CSV file.
         :param _: The URI to the CSV file (unused).
-        :return: A generator of key-value pairs of type [int, Tuple[int, str, float]], where the key is the id of a test
-        sample, and the value is a tuple containing the id of a train sample, its class, and the distance between the
-        features of the test and train samples.
+        :return: A generator of key-value pairs, where the key is the id of a test sample, and the value is a neighbour
+        tuple containing the id of a train sample, its class, and the distance between the features of the test and
+        train samples.
         """
         df = pd.read_csv(input_path)
         predictors = ['SepalLengthCm', 'SepalWidthCm', 'PetalLengthCm', 'PetalWidthCm']
@@ -40,6 +41,7 @@ class IrisClassificationJob(MRJob):
         train_df = df[df['Species'].notnull()]
 
         # Inplace modification of the dataframes results in an encoding error (bytes not 'str' required).
+        # This is probably because the mapper is a raw_mapper.
         test_df_deep_copy = test_df.copy(deep=True)
         train_df_deep_copy = train_df.copy(deep=True)
 
@@ -53,35 +55,49 @@ class IrisClassificationJob(MRJob):
         # Iterate through test_sample, train_sample pairs:
         for _, test_sample in test_df_deep_copy.iterrows():
             for _, train_sample in train_df_deep_copy.iterrows():
-                distance = compute_distances(train_sample[predictors].to_numpy(),
-                                             test_sample[predictors].to_numpy())
+                distance = norm(train_sample[predictors].to_numpy() -
+                                test_sample[predictors].to_numpy())
                 yield test_sample['Id'], (train_sample['Id'], train_sample['Species'], distance)
 
     def combiner(self,
                  key: int,
                  values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, Tuple[int, str, float]], None, None]:
+        """
+        Sort the mapper-node local neighbours of a test node. If there are multiple mapper nodes, this can be done in
+        parallel. The built-in sort is O(nlog(n)), and the min-heap merging of K sorted lists is O(nlog(k)). More mapper
+        nodes results in more efficient merging and more parallel sorting.
+
+        :param key: The id of a test sample.
+        :param values: A mapper-node local list of neighbour tuples, with the id, class, and distance.
+        :return: A generator of key-value pairs where the key is the id of the test sample and the value is the sorted
+        list of mapper-node local neighbour tuples.
+        """
         sorted_local_neighbours = sorted(values, key=lambda x: x[2])
         yield key, sorted_local_neighbours
 
     def reducer(self,
                 key: int,
-                values: List[List[Tuple[int, str, float]]]) -> Generator[Tuple[str, str], None, None]:
+                values: List[List[Tuple[int, str, float]]]) -> Generator[Tuple[int, str], None, None]:
         """
-        For a given test sample id, sort the distances to the train samples and return the class with most values.
+        Merges the sorted list of neighbours from the combiner, selects the first K (specified by the command line
+        argument -k) and determines the predominant class.
 
-        In this case it does not make sense to use a mapper-local combiner because we need all the distances to be
-        sported. Using a sorting+merging strategy wouldn't improve the performance
-        :param key: The ID of a sample in the test set.
-        :param values: List[Tuple(int, str, float)]
-        :return:
+        :param key: The id of a test sample.
+        :param values: A list of sorted lists of key's neighbours, each from the combiner in a different mapper node.
+        :return: A generator of key-value pairs where the key is the id of the test sample and the value is the
+        predicted class based on the KNN algorithm.
         """
-        list_merger = ListMerger()
-        k_nearest = list_merger.merge_k_lists(values)[self.options.kNearest]
-        class_ = determine_nearest(k_nearest)
+
+        neighbours = merge_k_lists(values)
+        k_nearest = neighbours[:self.options.kNearest]
+        class_ = get_most_frequent(k_nearest)
         yield key, class_
 
     def steps(self):
-
+        """
+        Define the job steps.
+        :return: The list of the steps of the job.
+        """
         return [
             MRStep(mapper_raw=self.mapper_csv,
                    combiner=self.combiner,
