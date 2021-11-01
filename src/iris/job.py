@@ -100,10 +100,12 @@ class IrisClassificationJob(MRJob):
                      key: int,
                      values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, str], None, None]:
         """
+        A reducer that sorts the list of unsorted neighbours and then selects the k-nearest.
 
-        :param key:
-        :param values:
-        :return:
+        :param key: The id of a test sample.
+        :param values: A single unsorted list of the key's neighbours.
+        :return: A generator of key-value pairs where the key is the id of the test sample and the value is the
+        predicted class based on the KNN algorithm.
         """
         all_neighbours = sorted(values, key=lambda x: x[2])
         k_nearest = all_neighbours[:self.options.kNearest]
@@ -112,12 +114,13 @@ class IrisClassificationJob(MRJob):
 
     def steps(self):
         """
-        Define the job steps.
+        Define the job steps. As two solutions are implemented for this job, comment one of the lines after return.
+
         :return: The list of the steps of the job.
         """
         return [
-            MRStep(mapper_raw=self.mapper_csv,
-                   reducer=self.reducer_sort)
+            # MRStep(mapper_raw=self.mapper_csv, reducer=self.reducer_sort)
+            MRStep(mapper_raw=self.mapper_raw, combiner=self.combiner, reducer=self.reducer_merge)
         ]
 
 
