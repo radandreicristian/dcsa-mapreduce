@@ -63,7 +63,8 @@ class IrisClassificationJob(MRJob):
 
     def combiner(self,
                  key: int,
-                 values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, Tuple[int, str, float]], None, None]:
+                 values: List[Tuple[int, str, float]]) -> Generator[
+        Tuple[int, Tuple[int, str, float]], None, None]:
         """
         Sort the mapper-node local neighbours of a test node. If there are multiple mapper nodes, this can be done in
         parallel. The built-in sort is O(nlog(n)), and the min-heap merging of K sorted lists is O(nlog(k)). More mapper
@@ -77,9 +78,9 @@ class IrisClassificationJob(MRJob):
         sorted_local_neighbours = sorted(values, key=lambda x: x[2])
         yield key, sorted_local_neighbours
 
-    def reducer(self,
-                key: int,
-                values: List[List[Tuple[int, str, float]]]) -> Generator[Tuple[int, str], None, None]:
+    def reducer_merge(self,
+                      key: int,
+                      values: List[List[Tuple[int, str, float]]]) -> Generator[Tuple[int, str], None, None]:
         """
         Merges the sorted list of neighbours from the combiner, selects the first K (specified by the command line
         argument -k) and determines the predominant class.
@@ -95,6 +96,20 @@ class IrisClassificationJob(MRJob):
         class_ = get_most_frequent(k_nearest)
         yield key, class_
 
+    def reducer_sort(self,
+                     key: int,
+                     values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, str], None, None]:
+        """
+
+        :param key:
+        :param values:
+        :return:
+        """
+        all_neighbours = sorted(values, key=lambda x: x[2])
+        k_nearest = all_neighbours[:self.options.kNearest]
+        class_ = get_most_frequent(k_nearest)
+        yield key, class_
+
     def steps(self):
         """
         Define the job steps.
@@ -102,8 +117,7 @@ class IrisClassificationJob(MRJob):
         """
         return [
             MRStep(mapper_raw=self.mapper_csv,
-                   combiner=self.combiner,
-                   reducer=self.reducer)
+                   reducer=self.reducer_sort)
         ]
 
 

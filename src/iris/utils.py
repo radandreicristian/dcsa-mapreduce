@@ -14,7 +14,7 @@ class Node:
         self.metadata = metadata
 
 
-def get_most_frequent(array: List[Tuple[int, float, str]]) -> str:
+def get_most_frequent(array: List[Tuple[int, str, float]]) -> str:
     """
     Gets the class with the most appearances from a list.
 
@@ -23,7 +23,7 @@ def get_most_frequent(array: List[Tuple[int, float, str]]) -> str:
     """
     lookup = {}
     for el in array:
-        class_ = el[2]
+        class_ = el[1]
         if class_ in lookup.keys():
             lookup[class_] += 1
         else:
@@ -67,8 +67,9 @@ def convert_to_list(node: Node) -> List:
     li = []
     current_node = node
     while current_node:
-        data = (current_node.value, *current_node.metadata)
-        li.append(data)
+        distance = current_node.value
+        id, class_ = current_node.metadata
+        li.append((id, class_, distance))
         current_node = current_node.next_node
     return li
 

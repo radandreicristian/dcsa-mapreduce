@@ -40,7 +40,7 @@ class RevertGraphJob(MRJob):
 
     def reducer(self,
                 key: int,
-                values: List[List[int]]) -> Generator[Tuple[int, List[int]], None, None]:
+                values: List[List[int]]) -> Generator[Tuple[int, int], None, None]:
         """
         Reduce the pairs with the same key (from across different mapper nodes).
 
