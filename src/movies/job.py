@@ -77,17 +77,18 @@ class TopKeywordsJob(MRJob):
                      key: str,
                      values: List[Tuple[str, int]]) -> Generator[Tuple[str, Tuple[str, int]], None, None]:
         """
-        Sort the tuples from the previous reducer by their total occurrences element.
+        Sort the tuples from the previous reducer by their total occurrences element. Take the first maxWords pairs for
+        each of the genres.
 
         :param key: The genre.
         :param values: Tuples consisting of a word and its total appearances.
         :return: The first maxWords words, by the number of appearances.
         """
         top_size = self.options.maxWords
-        for word, count in sorted(values,
-                                  key=lambda x: x[1],
-                                  reverse=True)[:top_size]:
-            yield key, (word, count)
+        sorted_values = sorted(values,
+                               key=lambda x: x[1],
+                               reverse=True)[:top_size]
+        yield key, sorted_values
 
     def steps(self) -> List:
         """
