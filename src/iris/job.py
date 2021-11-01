@@ -9,7 +9,7 @@ from numpy.linalg import norm
 
 
 class IrisClassificationJob(MRJob):
-    """An MRJob for iris classification using KNN,"""
+    """An mapreduce job that wraps the iris classification using KNN task."""
 
     def configure_args(self) -> None:
         """
@@ -20,6 +20,7 @@ class IrisClassificationJob(MRJob):
         self.add_passthru_arg("-k",
                               "--kNearest",
                               type=int,
+                              default=15,
                               help="How many closest neighbours to consider.")
 
     def mapper_csv(self,
@@ -28,6 +29,7 @@ class IrisClassificationJob(MRJob):
         """
         Reads a CSV-format file and outputs key-value pairs that indicate the distance between the test samples and
         the train samples.
+
         :param input_path: The path to the CSV file.
         :param _: The URI to the CSV file (unused).
         :return: A generator of key-value pairs, where the key is the id of a test sample, and the value is a neighbour

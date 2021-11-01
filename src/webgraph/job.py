@@ -1,15 +1,17 @@
-from mrjob.job import MRJob
-import os
+from collections import Generator
+from typing import Tuple, List
 
-from mrjob.step import MRStep
+from mrjob.job import MRJob, MRStep
 
 
 class RevertGraphJob(MRJob):
     """A mapreduce job that wraps the inversion of the edges in the Google web graph."""
 
-    def mapper_nodes(self, input_path, _):
+    def mapper_nodes(self,
+                     input_path: str,
+                     _: str) -> Generator[Tuple[int, int], None, None]:
         """
-        Map the raw text containing source destination node pairs into key, value pairs for the job.
+        Reads the raw text file containing source destination node pairs.
 
         :param input_path: The location of the input file.
         :param _: The URI of the input (unused).
@@ -20,10 +22,12 @@ class RevertGraphJob(MRJob):
                 # Just skip the comment lines
                 if line.startswith('#'):
                     continue
-                source_node, destination_node = line.split()
+                source_node, destination_node = map(int, line.split())
                 yield source_node, destination_node
 
-    def combiner(self, key, values):
+    def combiner(self,
+                 key: int,
+                 values: List[int]) -> Generator[Tuple[int, int], None, None]:
         """
         Combine the pairs with the same key (source_node).
         This step happens locally in the mapper node.
@@ -34,7 +38,9 @@ class RevertGraphJob(MRJob):
         """
         yield key, values
 
-    def reducer(self, key, values):
+    def reducer(self,
+                key: int,
+                values: List[List[int]]) -> Generator[Tuple[int, List[int]], None, None]:
         """
         Reduce the pairs with the same key (from across different mapper nodes).
 
@@ -46,9 +52,12 @@ class RevertGraphJob(MRJob):
         flat_values = [item for sublist in values for item in sublist]
         yield key, flat_values
 
-    def reducer_reverse(self, key, values):
+    def reducer_reverse(self,
+                        key: int,
+                        values: List[List[int]]) -> Generator[Tuple[int, int]]:
         """
         Effectively reverse the graph by emitting inverted pairs.
+
         :param key: The source node.
         :param values: Nested list containing all neighbours of the source node.
         :return: Key-value pairs where the the value is the source node and the keys are its neighbours (reversing).
@@ -61,6 +70,7 @@ class RevertGraphJob(MRJob):
     def steps(self):
         """
         Define the job steps. As there can only be 1 reducer step, another MRStep has to be defined for the sorting.
+
         :return: The list of the steps of the job.
         """
         return [

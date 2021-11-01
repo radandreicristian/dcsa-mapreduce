@@ -12,6 +12,7 @@ all_stopwords = set([word for language_stopwords in languages_stopwords for word
 def remove_punctuation(text: str) -> str:
     """
     Remove punctuation from a string.
+
     :param text: A text string that may contain punctuation.
     :return: The text string without punctuation.
     """
