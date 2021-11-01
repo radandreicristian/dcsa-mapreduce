@@ -1,10 +1,10 @@
-from typing import Tuple, Generator
+from typing import Tuple, Generator, List
 
 import pandas as pd
 from mrjob.job import MRJob
 from mrjob.step import MRStep
 
-from utils import determine_nearest, compute_distances
+from utils import determine_nearest, compute_distances, ListMerger
 
 
 class IrisClassificationJob(MRJob):
@@ -57,9 +57,15 @@ class IrisClassificationJob(MRJob):
                                              test_sample[predictors].to_numpy())
                 yield test_sample['Id'], (train_sample['Id'], train_sample['Species'], distance)
 
+    def combiner(self,
+                 key: int,
+                 values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, Tuple[int, str, float]], None, None]:
+        sorted_local_neighbours = sorted(values, key=lambda x: x[2])
+        yield key, sorted_local_neighbours
+
     def reducer(self,
-                key: str,
-                values: Tuple[int, str, float]) -> Generator[Tuple[int, str], None, None]:
+                key: int,
+                values: List[List[Tuple[int, str, float]]]) -> Generator[Tuple[str, str], None, None]:
         """
         For a given test sample id, sort the distances to the train samples and return the class with most values.
 
@@ -69,15 +75,16 @@ class IrisClassificationJob(MRJob):
         :param values: List[Tuple(int, str, float)]
         :return:
         """
-
-        k_nearest = sorted(values, key=lambda x: x[2])[:self.options.kNearest]
-        label = determine_nearest(k_nearest)
-        yield key, label
+        list_merger = ListMerger()
+        k_nearest = list_merger.merge_k_lists(values)[self.options.kNearest]
+        class_ = determine_nearest(k_nearest)
+        yield key, class_
 
     def steps(self):
 
         return [
             MRStep(mapper_raw=self.mapper_csv,
+                   combiner=self.combiner,
                    reducer=self.reducer)
         ]
 
