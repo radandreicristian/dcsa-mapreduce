@@ -50,20 +50,6 @@ class RevertGraphJob(MRJob):
         """
         # Flatten the neighbours list, which is nested at this point.
         flat_values = [item for sublist in values for item in sublist]
-        yield key, flat_values
-
-    def reducer_reverse(self,
-                        key: int,
-                        values: List[List[int]]) -> Generator[Tuple[int, int]]:
-        """
-        Effectively reverse the graph by emitting inverted pairs.
-
-        :param key: The source node.
-        :param values: Nested list containing all neighbours of the source node.
-        :return: Key-value pairs where the the value is the source node and the keys are its neighbours (reversing).
-        """
-        # Flatten the neighbours list, which is nested at this point.
-        flat_values = [item for sublist in values for item in sublist]
         for value in flat_values:
             yield value, key
 
@@ -76,9 +62,7 @@ class RevertGraphJob(MRJob):
         return [
             MRStep(mapper_raw=self.mapper_nodes,
                    combiner=self.combiner,
-                   reducer=self.reducer),
-            MRStep(reducer=self.reducer_reverse)
-        ]
+                   reducer=self.reducer)]
 
 
 if __name__ == '__main__':

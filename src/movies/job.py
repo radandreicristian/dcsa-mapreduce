@@ -59,7 +59,7 @@ class TopKeywordsJob(MRJob):
         yield key, sum(values),
 
     def reducer_sum(self,
-                    key: str,
+                    key: Tuple[str, str],
                     values: List[int]) -> Generator[Tuple[str, Tuple[str, int]], None, None]:
         """
         Combine the pairs with the same key by adding their values (from all the mapper nodes).
