@@ -120,7 +120,7 @@ class IrisClassificationJob(MRJob):
         """
         return [
             # MRStep(mapper_raw=self.mapper_csv, reducer=self.reducer_sort)
-            MRStep(mapper_raw=self.mapper_raw, combiner=self.combiner, reducer=self.reducer_merge)
+            MRStep(mapper_raw=self.mapper_csv, combiner=self.combiner, reducer=self.reducer_merge)
         ]
 
 
