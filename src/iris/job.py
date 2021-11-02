@@ -1,14 +1,15 @@
+from abc import ABC, abstractmethod
 from typing import Tuple, Generator, List
 
 import pandas as pd
 from mrjob.job import MRJob
 from mrjob.step import MRStep
-
-from utils import get_most_frequent, merge_k_lists
 from numpy.linalg import norm
 
+from utils import get_most_frequent, merge_k_lists
 
-class IrisClassificationJob(MRJob):
+
+class BaseIrisClassificationJob(MRJob, ABC):
     """An mapreduce job that wraps the iris classification using KNN task."""
 
     def configure_args(self) -> None:
@@ -16,7 +17,7 @@ class IrisClassificationJob(MRJob):
         Configure the command line arguments for running the job.
         :return: None.
         """
-        super(IrisClassificationJob, self).configure_args()
+        super(BaseIrisClassificationJob, self).configure_args()
         self.add_passthru_arg("-k",
                               "--kNearest",
                               type=int,
@@ -61,10 +62,21 @@ class IrisClassificationJob(MRJob):
                                 test_sample[predictors].to_numpy())
                 yield test_sample['Id'], (train_sample['Id'], train_sample['Species'], distance)
 
+    @abstractmethod
+    def steps(self):
+        """
+        Define the job steps. As two solutions are implemented for this job, comment one of the lines after return.
+
+        :return: The list of the steps of the job.
+        """
+        pass
+
+
+class SortMergeIrisClassificationJob(BaseIrisClassificationJob):
+
     def combiner(self,
                  key: int,
-                 values: List[Tuple[int, str, float]]) -> Generator[
-        Tuple[int, Tuple[int, str, float]], None, None]:
+                 values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, Tuple[int, str, float]], None, None]:
         """
         Sort the mapper-node local neighbours of a test node. If there are multiple mapper nodes, this can be done in
         parallel. The built-in sort is O(nlog(n)), and the min-heap merging of K sorted lists is O(nlog(k)). More mapper
@@ -78,9 +90,9 @@ class IrisClassificationJob(MRJob):
         sorted_local_neighbours = sorted(values, key=lambda x: x[2])
         yield key, sorted_local_neighbours
 
-    def reducer_merge(self,
-                      key: int,
-                      values: List[List[Tuple[int, str, float]]]) -> Generator[Tuple[int, str], None, None]:
+    def reducer(self,
+                key: int,
+                values: List[List[Tuple[int, str, float]]]) -> Generator[Tuple[int, str], None, None]:
         """
         Merges the sorted list of neighbours from the combiner, selects the first K (specified by the command line
         argument -k) and determines the predominant class.
@@ -96,9 +108,17 @@ class IrisClassificationJob(MRJob):
         class_ = get_most_frequent(k_nearest)
         yield key, class_
 
-    def reducer_sort(self,
-                     key: int,
-                     values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, str], None, None]:
+    def steps(self):
+        return [MRStep(mapper_raw=self.mapper_csv,
+                       combiner=self.combiner,
+                       reducer=self.reducer)]
+
+
+class MergeSortIrisClassificationJob(BaseIrisClassificationJob):
+
+    def reducer(self,
+                key: int,
+                values: List[Tuple[int, str, float]]) -> Generator[Tuple[int, str], None, None]:
         """
         A reducer that sorts the list of unsorted neighbours and then selects the k-nearest.
 
@@ -113,16 +133,10 @@ class IrisClassificationJob(MRJob):
         yield key, class_
 
     def steps(self):
-        """
-        Define the job steps. As two solutions are implemented for this job, comment one of the lines after return.
-
-        :return: The list of the steps of the job.
-        """
-        return [
-            # MRStep(mapper_raw=self.mapper_csv, reducer=self.reducer_sort)
-            MRStep(mapper_raw=self.mapper_csv, combiner=self.combiner, reducer=self.reducer_merge)
-        ]
+        return [MRStep(mapper_raw=self.mapper_csv,
+                       reducer=self.reducer)]
 
 
 if __name__ == '__main__':
-    job = IrisClassificationJob().run()
+    SortMergeIrisClassificationJob().run()
+    # MergeSortIrisClassificationJob().run()
