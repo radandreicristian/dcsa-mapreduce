@@ -36,7 +36,7 @@ class FrobeniusNormJob(MRJob):
         :param values: Mapper-node local square values from the key line.
         :return: Key-value pairs, where the key is the column and the value is the local sum of squares for that column.
         """
-        yield key, sum(map(lambda x: x * x, values))
+        yield key, sum(values)
 
     def reducer_column(self,
                        _: int,
